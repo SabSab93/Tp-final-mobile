@@ -1,33 +1,72 @@
-import React, { useState } from 'react';
-import { StyleSheet, TextInput, Button, Alert } from 'react-native';
+// app/(tabs)/connexion.tsx
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
+import React, { useState } from 'react';
+import {
+  Alert,
+  Button,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+// URL de base lue depuis .env (EXPO_PUBLIC_API_URL)
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://back-dev-8z4a.onrender.com';
 
 export default function Connexion() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      return Alert.alert('Erreur', 'Email et mot de passe requis');
+  const submit = async () => {
+    if (!email || !password || (isRegister && (!firstName || !lastName))) {
+      return Alert.alert('Erreur', 'Tous les champs sont obligatoires');
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
-      const res = await fetch('https://back-dev-8z4a.onrender.com/api/auth/login', {
+      const endpoint = isRegister
+        ? '/api/auth/register'
+        : '/api/auth/login';
+
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: { email, password } }),
+        body: JSON.stringify({
+          data: isRegister
+            ? { email, password, firstName, lastName }
+            : { email, password },
+        }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || 'Échec de connexion');
 
-      await AsyncStorage.setItem('token', json.token);
-      Alert.alert('Succès', 'Félicitations, vous êtes connecté !');
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await res.json()
+        : { message: await res.text() };
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Erreur serveur');
+      }
+
+      if (data.token) {
+        await AsyncStorage.setItem('token', data.token);
+      }
+
+      Alert.alert(
+        'Succès',
+        isRegister ? 'Compte créé !' : 'Connexion réussie !'
+      );
+
       setEmail('');
       setPassword('');
+      setFirstName('');
+      setLastName('');
     } catch (err: any) {
       Alert.alert('Erreur', err.message);
     } finally {
@@ -36,10 +75,29 @@ export default function Connexion() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>
-        Connexion
-      </ThemedText>
+    <View style={styles.container}>
+      <Text style={styles.title}>
+        {isRegister ? 'Créer un compte' : 'Connexion'}
+      </Text>
+
+      {isRegister && (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Prénom"
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholderTextColor="#aaa"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Nom"
+            value={lastName}
+            onChangeText={setLastName}
+            placeholderTextColor="#aaa"
+          />
+        </>
+      )}
 
       <TextInput
         style={styles.input}
@@ -48,6 +106,7 @@ export default function Connexion() {
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
+        placeholderTextColor="#aaa"
       />
 
       <TextInput
@@ -56,34 +115,55 @@ export default function Connexion() {
         secureTextEntry
         value={password}
         onChangeText={setPassword}
+        placeholderTextColor="#aaa"
       />
 
       <Button
-        title={loading ? '...' : 'Se connecter'}
-        onPress={handleLogin}
+        title={loading ? '…' : isRegister ? 'Créer' : 'Se connecter'}
+        onPress={submit}
         disabled={loading}
       />
-    </ThemedView>
+
+      <TouchableOpacity
+        onPress={() => setIsRegister(!isRegister)}
+        style={styles.toggle}
+      >
+        <Text style={styles.toggleText}>
+          {isRegister
+            ? 'Déjà un compte ? Se connecter'
+            : 'Pas encore de compte ? Créer'}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
+    padding: 24,
     justifyContent: 'center',
-    padding: 20,
-    gap: 16,
   },
   title: {
+    color: '#fff',
+    fontSize: 24,
+    marginBottom: 20,
     textAlign: 'center',
-    marginBottom: 4,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ccc',
+    borderColor: '#555',
     borderRadius: 6,
     padding: 10,
+    color: '#fff',
+    marginBottom: 16,
+  },
+  toggle: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  toggleText: {
+    color: '#4DA6FF',
   },
 });
-
-
